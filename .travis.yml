@@ -1,0 +1,18 @@
+language: julia
+
+julia:
+  - 1.1
+
+os:
+  - linux
+  - osx
+
+notifications:
+  email: false
+
+script:
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+  - julia --project --check-bounds=yes -e 'import Pkg; Pkg.build(; verbose=true); Pkg.test(; coverage=true);'
+
+after_success:
+  - julia --project -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());'
