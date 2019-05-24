@@ -54,28 +54,29 @@ function mle(
 
   # first iteration of the Newton's method
   ∇, H = gradient_hessian(η, x)
-  step_size = \(H, -∇)
-  η .+= step_size
-
-  # Use the Mean Square Error (MSE) as a convergence criteria
   mse = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+
+  step_size = \(H, -∇)
+  candidate = η + step_size
+
   counter = 1
 
+  # Use the Mean Square Error (MSE) as a convergence criteria
   while (mse > ϵ) && (counter <= 1_000) && (γ > 1.0e-10)
-    ∇, H = gradient_hessian(η, x)
+    ∇, H = gradient_hessian(candidate, x)
     tmp = sqrt((∇[1]^2 + ∇[2]^2) / 2)
 
-    if tmp < mse
-      γ = one(Float64)
+    if tmp <= mse
       mse = tmp
+      η = candidate
+
       step_size = \(H, -∇)
-      η .+= γ * step_size
+      candidate .+= γ * step_size
     else
       # by definition, MSE must be lower at every step. If this is not the case,
       # we took a too big step at the previous iteration
-      # reset to the previous iteration and decrease step size
-      η .-= γ * step_size
       γ /= 2
+      candidate .-= γ * step_size
     end
 
     counter += 1
