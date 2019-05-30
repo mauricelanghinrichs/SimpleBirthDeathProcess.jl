@@ -25,39 +25,46 @@ function mle(
 )::Vector{Float64}
   # try to find a good starting value
   # this is the maximum likelihood estimator of θ = (λ - μ)
-  θ = log(sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])) / x.u
+  α = sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])
+  θ = log(α) / x.u
 
-  # we don't know a closed form solution for the MLE of ω = μ / λ
-  # the idea here is to just check if we had more or less units at the end of
-  # the observation
-  ω::Float64 = if sum(x.state[1, :]) > sum(x.state[end, :])
-    2
-  else
-    0.5
+  # only one observation and only one timepoint is always estimated with either
+  # a pure death, pure birth process, or a constant process
+  if (x.k == 1) && (x.n == 1)
+    if x.state[1] > x.state[2]
+      return [zero(Float64), -θ]
+    elseif x.state[1] < x.state[2]
+      return [θ, zero(Float64)]
+    else
+      return [zero(Float64), zero(Float64)]
+    end
   end
 
-  λ = θ / (1 - ω)
-  μ = λ * ω
+  # use the second moment to get an approximation of ψ = λ + μ
+  # we know that V[N_{k} / N_{k-1}] = ψ * α * (α - 1) / (N_{k-1} * θ)
+  v = mean(x.state[1:(end - 1), :] .*
+           (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
 
-  η::Vector{Float64} = if (λ >= 0) && (μ >= 0)
-    [λ, μ]
-  elseif (λ < 0) && (μ >= 0)
-    [0, μ]
-  elseif (λ >= 0) && (μ < 0)
-    [λ, 0]
-  else
-    error("Initialization failed! λ = ", λ, ", μ = ", μ)
-  end
+  ψ = θ * v / (α * (α - 1))
+
+  λ = (ψ + θ) / 2
+  μ = (ψ - θ) / 2
 
   ϵ = 1.0e-6
   γ = one(Float64)
 
   # first iteration of the Newton's method
-  ∇, H = gradient_hessian(η, x)
+  ∇, H = gradient_hessian([λ, μ], x)
   mse = sqrt((∇[1]^2 + ∇[2]^2) / 2)
 
   step_size = \(H, -∇)
-  candidate = η + step_size
+
+  # to satisfy the constraint 'λ - μ = θ' the step size should be the same
+  # in both coordinates. this is usually the case but numerical errors might
+  # affect the previous operation. Since we don't know which of the two elements
+  # is closest to the correct step size, we use the average
+  ω = (step_size[1] + step_size[2]) / 2
+  candidate = [λ + ω, μ + ω]
 
   counter = 1
 
@@ -68,19 +75,31 @@ function mle(
 
     if tmp <= mse
       mse = tmp
-      η = candidate
+      λ = candidate[1]
+      μ = candidate[2]
 
       step_size = \(H, -∇)
-      candidate .+= γ * step_size
+      candidate .+= γ * (step_size[1] + step_size[2]) / 2
     else
       # by definition, MSE must be lower at every step. If this is not the case,
       # we took a too big step at the previous iteration
       γ /= 2
-      candidate .-= γ * step_size
+      candidate[1] = λ
+      candidate[2] = μ
     end
 
     counter += 1
   end
 
-  η
+  if counter > 1_000
+    @warn string("Maximum number of iterations (1000) reached. ",
+                 "Solution might not be a global optimum.")
+  end
+
+  if γ <= 1.0e-10
+    @warn string("Minimum step size (1.0e-10) reached. ",
+                 "Solution might not be a global optimum.")
+  end
+
+  [λ, μ]
 end
