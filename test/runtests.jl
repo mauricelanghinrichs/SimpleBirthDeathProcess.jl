@@ -18,7 +18,8 @@ function runtests()
     "simple/transition_probabilities",
     "simple/simulation",
     "simple/gradient",
-    "simple/hessian"
+    "simple/hessian",
+    "simple/derivatives"
   ]
 
   for t in tests

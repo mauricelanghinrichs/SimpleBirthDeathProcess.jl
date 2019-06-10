@@ -1,6 +1,7 @@
 module SimpleBirthDeathProcess
   using LinearAlgebra
   using SpecialFunctions
+  using Statistics
 
   export
   loglik,

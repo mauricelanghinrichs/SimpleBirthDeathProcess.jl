@@ -76,13 +76,13 @@ function gradient_hessian(
   F <: AbstractFloat
 }
   ∇ = fill(zero(Float64), 2)
-  H = fill(zero(Float64), (2, 2))
+  H = Symmetric(fill(zero(Float64), (2, 2)))
 
-  for n = 1:size(x.state, 2), s = 2:size(x.state, 1)
+  for n = 1:x.n, s = 2:x.k
     a, b = gradient_hessian(η, x.state[s - 1, n], x.state[s, n], x.u)
     ∇ .+= a
     H .+= b
   end
 
-  ∇, Symmetric(H)
+  ∇, H
 end

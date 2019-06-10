@@ -15,6 +15,12 @@
 
     x, y = SimpleBirthDeathProcess.gradient_hessian([F(0), F(0)], 1, 0, F(1))
     @test isa(x, Vector{F})
+
+    x, y = SimpleBirthDeathProcess.gradient_hessian([F(1e-4), F(1e-4)], 1, 0, F(1))
+    @test isa(x, Vector{F})
+
+    x, y = SimpleBirthDeathProcess.gradient_hessian([F(1e-4), F(1e-5)], 1, 0, F(1))
+    @test isa(x, Vector{F})
   end
 end
 

@@ -21,85 +21,302 @@ function mle(
 end
 
 function mle(
-  x::ObservationDiscreteTimeEven
+  x::ObservationDiscreteTimeEven;
+  start::Float64=zero(Float64)
 )::Vector{Float64}
-  # try to find a good starting value
   # this is the maximum likelihood estimator of θ = (λ - μ)
   α = sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])
   θ = log(α) / x.u
 
-  # only one observation and only one timepoint is always estimated with either
-  # a pure death, pure birth process, or a constant process
-  if (x.k == 1) && (x.n == 1)
-    if x.state[1] > x.state[2]
-      return [zero(Float64), -θ]
-    elseif x.state[1] < x.state[2]
+  # check that the log-likelihood function is not monotonically decreasing
+  if θ > 0
+    if loglik([θ, zero(Float64)], x) > loglik([θ + 1.0e-4, 1.0e-4], x)
       return [θ, zero(Float64)]
-    else
-      return [zero(Float64), zero(Float64)]
+    end
+  elseif θ < 0
+    if loglik([zero(Float64), -θ], x) > loglik([1.0e-4, 1.0e-4 - θ], x)
+      return [zero(Float64), -θ]
+    end
+  else
+    if loglik(zeros(Float64, 2), x) > loglik([1.0e-4, 1.0e-4], x)
+      return zeros(Float64, 2)
     end
   end
 
-  # use the second moment to get an approximation of ψ = λ + μ
-  # we know that V[N_{k} / N_{k-1}] = ψ * α * (α - 1) / (N_{k-1} * θ)
-  v = mean(x.state[1:(end - 1), :] .*
-           (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
+  μ = start
 
-  ψ = θ * v / (α * (α - 1))
+  if μ <= 0
+    # use the second moment to get an approximation of ψ = λ + μ
+    # we know that V[N_{k} / N_{k-1}] = ψ * α * (α - 1) / (N_{k-1} * θ)
+    v = mean(x.state[1:(end - 1), :] .*
+             (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
 
-  λ = (ψ + θ) / 2
-  μ = (ψ - θ) / 2
+    ψ = θ * v / (α * (α - 1))
 
-  ϵ = 1.0e-6
+    μ = (ψ - θ) / 2
+
+    if μ < 0
+      μ = 1.0e-16
+    end
+  end
+
+  # first iteration of the Newton-Raphson method
+  d1, d2 = derivatives_mle(μ, θ, x)
+
+  absval = abs(d1)
+  candidate = μ - d1 / d2
+
+  # Newton-Raphson method parameters
   γ = one(Float64)
-
-  # first iteration of the Newton's method
-  ∇, H = gradient_hessian([λ, μ], x)
-  mse = sqrt((∇[1]^2 + ∇[2]^2) / 2)
-
-  step_size = \(H, -∇)
-
-  # to satisfy the constraint 'λ - μ = θ' the step size should be the same
-  # in both coordinates. this is usually the case but numerical errors might
-  # affect the previous operation. Since we don't know which of the two elements
-  # is closest to the correct step size, we use the average
-  ω = (step_size[1] + step_size[2]) / 2
-  candidate = [λ + ω, μ + ω]
-
+  ϵ = 1.0e-6
+  max_iter = 100
   counter = 1
 
-  # Use the Mean Square Error (MSE) as a convergence criteria
-  while (mse > ϵ) && (counter <= 1_000) && (γ > 1.0e-10)
-    ∇, H = gradient_hessian(candidate, x)
-    tmp = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+  while (absval > ϵ) && (counter <= max_iter)
+    d1, d2 = derivatives_mle(candidate, θ, x)
+    tmp = abs(d1)
 
-    if tmp <= mse
-      mse = tmp
-      λ = candidate[1]
-      μ = candidate[2]
-
-      step_size = \(H, -∇)
-      candidate .+= γ * (step_size[1] + step_size[2]) / 2
+    if tmp <= absval
+      absval = tmp
+      μ = candidate
+      candidate -= γ * d1 / d2
     else
-      # by definition, MSE must be lower at every step. If this is not the case,
-      # we took a too big step at the previous iteration
+      # by definition first derivative must be lower at every step. If this is
+      # not the case we took a too big step at the previous iteration
       γ /= 2
-      candidate[1] = λ
-      candidate[2] = μ
+      candidate = μ
     end
 
     counter += 1
   end
 
-  if counter > 1_000
-    @warn string("Maximum number of iterations (1000) reached. ",
-                 "Solution might not be a global optimum.")
+  if counter > max_iter
+    @warn string("Maximum number of iterations reached. ",
+                 "(iterations = ", max_iter, "; |first derivative| = ", absval,
+                 "). Solution might not be a global optimum.")
   end
 
-  if γ <= 1.0e-10
-    @warn string("Minimum step size (1.0e-10) reached. ",
-                 "Solution might not be a global optimum.")
+  [θ + μ, μ]
+end
+
+"""
+    derivatives_mle(μ, θ, x)
+
+Compute the first and second derivatives of the log-likelihood of the sample
+`x` evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
+"""
+function derivatives_mle(
+  μ::F,
+  θ::F,
+  x::ObservationDiscreteTimeEven
+)::Tuple{F, F} where {
+  F <: AbstractFloat
+}
+  d1 = zero(F)
+  d2 = zero(F)
+
+  for n = 1:x.n, s = 2:x.k
+    r1, r2 = derivatives_mle(μ, x.state[s - 1, n], x.state[s, n], x.u, θ)
+    d1 += r1
+    d2 += r2
   end
 
-  [λ, μ]
+  d1, d2
+end
+
+"""
+    derivatives_mle(μ, i, j, t, θ)
+
+Compute the first and second derivatives of the log-transition probability
+evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
+"""
+function derivatives_mle(
+  μ::F,
+  i::I,
+  j::I,
+  t::F,
+  θ::F
+)::Tuple{F, F} where {
+  F <: AbstractFloat,
+  I <: Integer
+}
+  ϵ = floatmin(F)
+
+  if abs(θ) <= ϵ
+    # TODO: Improve numerical accuracy of formulas
+    if (F === BigFloat) || (μ * t > 0.001)
+      derivatives_equal_rates(μ, F(i), F(j), t)
+    else
+      setprecision(BigFloat, 256) do
+        m = BigFloat(μ)
+        a = BigFloat(i)
+        b = BigFloat(j)
+        s = BigFloat(t)
+
+        d1, d2 = derivatives_equal_rates(m, a, b, s)
+
+        F(d1), F(d2)
+      end
+    end
+  else
+    if (F === BigFloat) || (log((θ + μ) / μ) / (θ * t) < 1_000)
+      derivatives_unequal_rates(μ, F(i), F(j), t, θ)
+    else
+      setprecision(BigFloat, 256) do
+        m = BigFloat(μ)
+        a = BigFloat(i)
+        b = BigFloat(j)
+        s = BigFloat(t)
+        v = BigFloat(θ)
+
+        d1, d2 = derivatives_unequal_rates(m, a, b, s, v)
+
+        F(d1), F(d2)
+      end
+    end
+  end
+end
+
+"""
+    derivatives_equal_rates(μ, i, j, t)
+
+Compute the first and second derivatives of the log-transition probability
+evaluated at the point `μ`. MLE of `θ` is zero.
+"""
+function derivatives_equal_rates(
+  μ::F,
+  i::F,
+  j::F,
+  t::F
+)::Tuple{F, F} where {
+  F <: AbstractFloat
+}
+  q0 = μ * t
+
+  f1 = 1 + q0
+  f2 = 1 + 2 * q0
+
+  if j > 0
+    if (i > 1) && (j > 1)
+      q1 = log(μ * t)
+
+      a, b = (j <= i) ? (i, j) : (j, i)
+
+      p1, p2, p3 = if q1 <= 0
+        log_hypergeometric_joint(a, b, logexpm1(-2 * q1))
+      else
+        log_meixner_ortho_poly_joint(a, b, 2 * q1)
+      end
+
+      c1 = i * j * exp(p2 - p1) / (i + j - 1)
+      c2 = 2 * i * j * exp(p2 - p1 - 2 * q1) / (i + j - 1)
+      c3 = 2 * (i - 1) * (j - 1) * exp(p3 - p2 - 2 * q1) / (i + j - 2)
+
+      d1 = ((i + j) / f1 - c2) / μ
+      d2 = -((i + j) * f2 / f1^2 - c2 * (3 + c3 - c2)) / μ^2
+
+      d1, d2
+    else
+      # hypergeometric(i - 1, j - 1, z, k=0) is one
+      # hypergeometric(i - 2, j - 2, z, k=-1) is zero
+      c1 = 2 / q0^2
+
+      d1 = ((i + j) / f1 - c1) / μ
+      d2 = -((i + j) * f2 / f1^2 - c1 * (3 - c1)) / μ^2
+
+      d1, d2
+    end
+  else
+    d1 = i / (μ * f1)
+    d2 = -i * f2 / (μ * f1)^2
+
+    d1, d2
+  end
+end
+
+"""
+    derivatives_unequal_rates(μ, i, j, t, θ)
+
+Compute the first and second derivatives of the log-transition probability
+evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
+"""
+function derivatives_unequal_rates(
+  μ::F,
+  i::F,
+  j::F,
+  t::F,
+  θ::F
+)::Tuple{F, F} where {
+  F <: AbstractFloat
+}
+  λ = θ + μ
+  a, b = (j <= i) ? (i, j) : (j, i)
+
+  q0 = log(λ * μ)
+  q1 = log(λ / μ)
+  q2 = θ * t
+
+  k0 = expm1(q2)
+  k1 = expm1(q2 + q1)
+  k2 = expm1(q2 - q1)
+
+  c1 = i * j / (i + j - 1)
+  c2 = (i - 1) * (j - 1) / (i + j - 2)
+  c3 = zero(F)
+
+  ξ = q1 / θ
+
+  if j > 0
+    u1 = zero(F)
+    u2 = zero(F)
+    fa = zero(F)
+
+    if (i > 1) && (j > 1)
+      p1, p2, p3 = if t <= ξ
+        y = log(-(k1 / k0) * (k2 / k0))
+        log_hypergeometric_joint(a, b, y)
+      else
+        y = q0 - q2 + 2 * log(k0 / θ)
+        log_meixner_ortho_poly_joint(a, b, y)
+      end
+
+      u1 = p2 - p1
+      u2 = p3 - p2
+
+      c3 = c1 * exp(u1)
+
+      fa = c2 * exp(u2) - c3
+    else
+      # hypergeometric(i - 1, j - 1, z, k=0) is one because either i or j is one
+      # hypergeometric(i - 2, j - 2, z, k=-1) is zero
+      u1 = q0 - q2 + 2 * log(k0 / θ)
+      u2 = -Inf
+
+      c3 = c1 * exp(u1)
+
+      fa = -c3
+    end
+
+    w0 = θ / (μ * λ)
+    w1 = w0 * (i * exp(q2 + q1) + j) / k1
+    w2 = - θ * ((θ + 2 * μ) * (i * exp(2 * (q2 + q1)) - j) -
+                2 * (i * λ - j * μ) * exp(q2 + q1)) / (μ * λ * k1)^2
+
+    m0 = (θ / (μ * λ * expm1(q2)))^2
+    m1 = - m0 * (θ + 2 * μ) * exp(q2)
+    m2 = m0 * (θ^2 + 3 * (θ + 2 * μ)^2) * exp(q2) / (2 * μ * λ)
+
+    d1 = w1 + c3 * m1
+    d2 = w2 + c3 * (m2 + m1^2 * fa)
+
+    d1, d2
+  else
+    # hypergeometric(i - 1, j - 1, z, k=0) and
+    # hypergeometric(i - 2, j - 2, z, k=-1) are both zero
+    d1 = θ * i * exp(q2 + q1) / (k1 * μ * λ)
+    d2 = -θ * ((θ + 2 * μ) * i * exp(2 * (q2 + q1)) -
+               2 * i * λ * exp(q2 + q1)) / (μ * λ * k1)^2
+
+    d1, d2
+  end
 end
