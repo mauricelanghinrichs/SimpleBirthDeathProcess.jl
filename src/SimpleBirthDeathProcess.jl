@@ -7,8 +7,8 @@ module SimpleBirthDeathProcess
   loglik,
   mle,
   observation_continuous_time,
-  observation_discrete_time_even,
-  observation_discrete_time_uneven,
+  observation_discrete_time_equal,
+  observation_discrete_time_unequal,
   rand_continuous,
   rand_discrete,
   trans_prob

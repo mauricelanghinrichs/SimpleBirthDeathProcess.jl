@@ -21,19 +21,24 @@ function mle(
 end
 
 function mle(
-  x::ObservationDiscreteTimeEven;
+  x::ObservationDiscreteTimeEqual;
   start::Float64=zero(Float64)
 )::Vector{Float64}
   # this is the maximum likelihood estimator of θ = (λ - μ)
   α = sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])
   θ = log(α) / x.u
 
-  # check that the log-likelihood function is not monotonically decreasing
+  # check that the log-likelihood function is not monotonic
   if θ > 0
     if loglik([θ, zero(Float64)], x) > loglik([θ + 1.0e-4, 1.0e-4], x)
       return [θ, zero(Float64)]
     end
   elseif θ < 0
+    if isinf(θ)
+      # population went immediately extinct and MLE does not exist
+      return [zero(Float64), Float64(Inf)]
+    end
+
     if loglik([zero(Float64), -θ], x) > loglik([1.0e-4, 1.0e-4 - θ], x)
       return [zero(Float64), -θ]
     end
@@ -51,28 +56,49 @@ function mle(
     v = mean(x.state[1:(end - 1), :] .*
              (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
 
-    ψ = θ * v / (α * (α - 1))
+    if abs(θ) > floatmin(Float64)
+      ψ = θ * v / (α * (α - 1))
+      μ = (ψ - θ) / 2
+    else
+      μ = v / (2 * x.u)
+    end
 
-    μ = (ψ - θ) / 2
-
-    if μ < 0
-      μ = 1.0e-16
+    if (μ < 0) || (θ + μ <= 0) || isnan(μ) || isinf(μ)
+      if θ > 0
+        μ = 1.0e-16
+      else
+        μ = 1.0e-16 - θ
+      end
     end
   end
-
-  # first iteration of the Newton-Raphson method
-  d1, d2 = derivatives_mle(μ, θ, x)
-
-  absval = abs(d1)
-  candidate = μ - d1 / d2
 
   # Newton-Raphson method parameters
   γ = one(Float64)
   ϵ = 1.0e-6
   max_iter = 100
-  counter = 1
+  tot_iter = 1
+  neg_iter = 1_000
+  keep_going = true
 
-  while (absval > ϵ) && (counter <= max_iter)
+  # first iteration of the Newton-Raphson method
+  d1, d2 = derivatives_mle(μ, θ, x)
+  absval = abs(d1)
+  candidate = μ - d1 / d2
+
+  # it might happen that we overshoot already at the first try
+  # use a different counter from the main iteration
+  counter = 1
+  while ((candidate < 0) || (θ + candidate < 0)) && (counter <= neg_iter)
+    γ /= 2
+    candidate = μ - γ * d1 / d2
+    counter += 1
+  end
+
+  if counter > neg_iter
+    keep_going = false
+  end
+
+  while keep_going && (absval > ϵ) && (tot_iter <= max_iter)
     d1, d2 = derivatives_mle(candidate, θ, x)
     tmp = abs(d1)
 
@@ -80,6 +106,17 @@ function mle(
       absval = tmp
       μ = candidate
       candidate -= γ * d1 / d2
+
+      counter = 1
+      while ((candidate < 0) || (θ + candidate < 0)) && (counter <= neg_iter)
+        γ /= 2
+        candidate = μ - γ * d1 / d2
+        counter += 1
+      end
+
+      if counter > neg_iter
+        keep_going = false
+      end
     else
       # by definition first derivative must be lower at every step. If this is
       # not the case we took a too big step at the previous iteration
@@ -87,10 +124,14 @@ function mle(
       candidate = μ
     end
 
-    counter += 1
+    tot_iter += 1
   end
 
-  if counter > max_iter
+  if !keep_going
+    @warn string("It was not possible to find a new positive candidate value. ",
+                 "Solution is not a global optimum! ",
+                 "Restart the algorithm from a different initial point.")
+  elseif counter > max_iter
     @warn string("Maximum number of iterations reached. ",
                  "(iterations = ", max_iter, "; |first derivative| = ", absval,
                  "). Solution might not be a global optimum.")
@@ -108,7 +149,7 @@ Compute the first and second derivatives of the log-likelihood of the sample
 function derivatives_mle(
   μ::F,
   θ::F,
-  x::ObservationDiscreteTimeEven
+  x::ObservationDiscreteTimeEqual
 )::Tuple{F, F} where {
   F <: AbstractFloat
 }
@@ -217,9 +258,10 @@ function derivatives_equal_rates(
 
       d1, d2
     else
+      # hypergeometric(i, j, z, k=1) is 1 + z = q0^(-2)
       # hypergeometric(i - 1, j - 1, z, k=0) is one
       # hypergeometric(i - 2, j - 2, z, k=-1) is zero
-      c1 = 2 / q0^2
+      c1 = i * j * 2 / (i + j - 1)
 
       d1 = ((i + j) / f1 - c1) / μ
       d2 = -((i + j) * f2 / f1^2 - c1 * (3 - c1)) / μ^2

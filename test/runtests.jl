@@ -15,6 +15,7 @@ function runtests()
     "common/functions",
     "common/hypergeometric",
     "common/meixner_ortho_poly",
+    "common/types",
     "simple/transition_probabilities",
     "simple/simulation",
     "simple/gradient",

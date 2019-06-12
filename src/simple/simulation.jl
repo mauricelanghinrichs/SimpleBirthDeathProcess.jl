@@ -286,7 +286,7 @@ function rand_discrete(
     state[:, s] = simulate_discrete(i, I(k), F(u), [F(η[1]), F(η[2])])
   end
 
-  ObservationDiscreteTimeEven{F, I}(Int(n), Int(k), F(u), state)
+  ObservationDiscreteTimeEqual{F, I}(Int(n), Int(k), F(u), state)
 end
 
 """

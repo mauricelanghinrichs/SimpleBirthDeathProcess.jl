@@ -78,28 +78,28 @@ observation_continuous_time(s, x, t)
 where `x` is the (integer) vector of population sizes of length ``h``, `s` is the vector of event times of length ``h``, and `t` is the total time the process was observed.
 
 #### Discrete case
-If your data was observed only at pre-specified fixed points, we need to consider two distinct cases: evenly or unevenly distributed time points.
-When the time points are evenly distributed define
+If your data was observed only at pre-specified fixed points, we need to consider two distinct cases: equally or unequally distributed time points.
+When the time points are equidistant define
 
 - `u`: non-negative time lag equally separating each observation
 - `x`: vector of length ``k`` (or ``k``-by-``n`` matrix for the case of ``n`` i.i.d. simple BDPs) with the observed population sizes
 
-To create a `ObservationDiscreteTimeEven` object for data analysis use
+To create a `ObservationDiscreteTimeEqual` object for data analysis use
 
 ```julia
-observation_discrete_time_even(u, x)
+observation_discrete_time_equal(u, x)
 ```
 
-When the time points are unevenly distributed, to create a `ObservationDiscreteTimeUneven` object use instead
+When the time points are unequally spaced use instead
 
 ```julia
-observation_discrete_time_uneven(t, x)
+observation_discrete_time_unequal(t, x)
 ```
 
-where `x` is the (integer) vector of population sizes of length ``h`` and `t` is the vector of event times of same length ``h``.
+to create a `ObservationDiscreteTimeUnequal` object, where `x` is the (integer) vector of population sizes of length ``h`` and `t` is the vector of event times of same length ``h``.
 
 ### log-likelihood function
-To evaluate the log-likelihood function you first need to create one of `ObservationContinuousTime`, `ObservationDiscreteTimeEven`, `ObservationDiscreteTimeUneven` as described in the previous sections, either by simulation or by converting pre-existing data.
+To evaluate the log-likelihood function you first need to create one of `ObservationContinuousTime`, `ObservationDiscreteTimeEqual`, `ObservationDiscreteTimeUnequal` as described in the previous sections, either by simulation or by converting pre-existing data.
 Call such object `obs_data`.
 
 The value of the log-likelihood function associated with the observed data for a particular combination of parameters `η = [λ, μ]` can be obtained by

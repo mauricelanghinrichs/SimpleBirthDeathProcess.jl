@@ -31,7 +31,7 @@ of time used to observe the process, that is `t[end] ≦ observation_time`.
 function observation_continuous_time(
   t::Vector{F},
   x::Vector{Int},
-  observation_time::F
+  observation_time::Real
 ) where {
   F <: AbstractFloat
 }
@@ -89,7 +89,7 @@ function observation_continuous_time(
   end
 
   # no events between t[end] and observation_time
-  integrated_jump += x[s] * (observation_time - t[end])
+  integrated_jump += x[end] * (F(observation_time) - t[end])
 
   sum_log_n = sum(log, x[1:len])
 
@@ -98,12 +98,12 @@ function observation_continuous_time(
 end
 
 """
-    ObservationDiscreteTimeEven
+    ObservationDiscreteTimeEqual
 
 Parametric composite type to store birth and death process realizations,
 observed at fixed time points with the same lag.
 """
-struct ObservationDiscreteTimeEven{
+struct ObservationDiscreteTimeEqual{
   F <: AbstractFloat,
   I <: Integer
 }
@@ -122,14 +122,14 @@ struct ObservationDiscreteTimeEven{
 end
 
 """
-    observation_discrete_time_even(u, x)
+    observation_discrete_time_equal(u, x)
 
-Construct an object of type `ObservationDiscreteTimeEven` from a discretely
+Construct an object of type `ObservationDiscreteTimeEqual` from a discretely
 observed time series. Variable `x` is a vector (or matrix if more than 1
 observation) of observed population sizes while `u` is the fixed time lag after
 which every observation was made.
 """
-function observation_discrete_time_even(
+function observation_discrete_time_equal(
   u::Real,
   x::Vector{I}
 ) where {
@@ -146,10 +146,10 @@ function observation_discrete_time_even(
   k = length(x)
   F = typeof(float(u))
 
-  ObservationDiscreteTimeEven{F, I}(1, k, F(u), reshape(x, k, 1))
+  ObservationDiscreteTimeEqual{F, I}(1, k, F(u), reshape(x, k, 1))
 end
 
-function observation_discrete_time_even(
+function observation_discrete_time_equal(
   u::Real,
   x::Matrix{I}
 ) where {
@@ -165,16 +165,16 @@ function observation_discrete_time_even(
 
   F = typeof(float(u))
 
-  ObservationDiscreteTimeEven{F, I}(size(x, 2), size(x, 1), F(u), x)
+  ObservationDiscreteTimeEqual{F, I}(size(x, 2), size(x, 1), F(u), x)
 end
 
 """
-    ObservationDiscreteTimeUneven
+    ObservationDiscreteTimeUnequal
 
 Parametric composite type to store birth and death process realizations,
 observed at discrete time points of varying length.
 """
-struct ObservationDiscreteTimeUneven{
+struct ObservationDiscreteTimeUnequal{
   F <: AbstractFloat,
   I <: Integer
 }
@@ -186,13 +186,13 @@ struct ObservationDiscreteTimeUneven{
 end
 
 """
-    observation_discrete_time_uneven(x, t)
+    observation_discrete_time_unequal(x, t)
 
-Construct an object of type `ObservationDiscreteTimeUneven` from a discretely
+Construct an object of type `ObservationDiscreteTimeUnequal` from a discretely
 observed time series. Variable `x` is a vector of observed population sizes
 while `t` is the vector of event times.
 """
-function observation_discrete_time_uneven(
+function observation_discrete_time_unequal(
   t::Vector{F},
   x::Vector{I}
 ) where {
@@ -230,5 +230,5 @@ function observation_discrete_time_uneven(
     end
   end
 
-  ObservationDiscreteTimeUneven{F, I}(waiting_time, x)
+  ObservationDiscreteTimeUnequal{F, I}(waiting_time, x)
 end

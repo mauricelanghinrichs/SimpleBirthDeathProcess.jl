@@ -1,6 +1,5 @@
 @testset "Exceptions" begin
-  # initial population size is zero or negative
-  @test_throws DomainError trans_prob( 0, 20, 72.0, [0.1, 0.05])
+  # initial population size is negative
   @test_throws DomainError trans_prob(-1, 20, 72.0, [0.1, 0.05])
 
   # final population size is negative

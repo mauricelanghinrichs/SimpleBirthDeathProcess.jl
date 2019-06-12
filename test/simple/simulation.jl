@@ -65,10 +65,10 @@ end
     @test isa(SimpleBirthDeathProcess.rand_continuous(I(100), I(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationContinuousTime{F})
     @test isa(SimpleBirthDeathProcess.rand_continuous(I(100), F(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationContinuousTime{F})
 
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), I(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), F(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), I(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), F(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [F(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
 
     # ...but if parameters are passed as integers, operations use Float64
     @test isa(SimpleBirthDeathProcess.rand_continuous(I(2), I(100), I(1), [I(1), I(1)]), Vector{SimpleBirthDeathProcess.ObservationContinuousTime{Float64}})
@@ -79,13 +79,13 @@ end
     @test isa(SimpleBirthDeathProcess.rand_continuous(I(100), I(1), [I(1), F(1)]), SimpleBirthDeathProcess.ObservationContinuousTime{F})
 
     # simulations happen as Float64 but we only see the realizations as integer counts
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), I(1), [I(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{Float64, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [F(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [I(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(1), I(1), [I(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{Float64, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [F(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), I(1), [I(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
 
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [I(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [F(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
-    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [I(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [I(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [F(1), I(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
+    @test isa(SimpleBirthDeathProcess.rand_discrete(I(100), I(1), F(1), [I(1), F(1)]), SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
   end
 end
 
@@ -156,7 +156,7 @@ end
   @test x.increment == Int[]
 
   x = SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(0), I(1), [I(1), I(1)])
-  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEven{Float64, I})
+  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{Float64, I})
   @test x.n == Int(2)
   @test x.k == zero(Int)
   @test x.u == one(Float64)
@@ -165,7 +165,7 @@ end
   @test x.state[1, 2] == I(100)
 
   x = SimpleBirthDeathProcess.rand_discrete(I(2), I(100), I(0), F(1), [F(1), F(1)])
-  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
+  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
   @test x.n == Int(2)
   @test x.k == zero(Int)
   @test x.u == one(F)
@@ -174,7 +174,7 @@ end
   @test x.state[1, 2] == I(100)
 
   x = SimpleBirthDeathProcess.rand_discrete(I(100), I(0), I(1), [I(1), I(1)])
-  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEven{Float64, I})
+  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{Float64, I})
   @test x.n == one(Int)
   @test x.k == zero(Int)
   @test x.u == one(Float64)
@@ -182,7 +182,7 @@ end
   @test x.state[1, 1] == I(100)
 
   x = SimpleBirthDeathProcess.rand_discrete(I(100), I(0), F(1), [F(1), F(1)])
-  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEven{F, I})
+  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{F, I})
   @test x.n == one(Int)
   @test x.k == zero(Int)
   @test x.u == one(F)
@@ -210,7 +210,7 @@ end
   @test abs(var([(1 + sum(x[s].increment) / i) for s = 1:n]) - v) < 1e-5
 
   x = SimpleBirthDeathProcess.rand_discrete(n, i, k, u, [λ, μ])
-  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEven{Float64, Int64})
+  @test isa(x, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual{Float64, Int64})
   @test size(x.state) == (k + 1, n)
   @test abs(mean(x.state[end, :] ./ i) - e) < 1e-5
   @test abs(var(x.state[end, :] ./ i) - v) < 1e-5

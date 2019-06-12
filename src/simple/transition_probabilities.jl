@@ -248,7 +248,7 @@ death process.
 end
 
 """
-    trans_prob(i, j, t, λ, μ; log_value)
+    trans_prob(i, j, t, [λ, μ]; log_value)
 
 Evaluate the transition probability of a simple birth and death process, i.e.
 the probability of moving from `i` to `j` in `t` time when the birth rate is
@@ -278,8 +278,8 @@ function trans_prob(
   I <: Integer,
   R <: Real
 }
-  if i < 1
-    msg = "Initial population size 'i' must be greater than zero."
+  if i < 0
+    msg = "Initial population size 'i' must be greater than or equal to zero."
     throw(DomainError(i, msg))
   end
 
@@ -308,7 +308,13 @@ function trans_prob(
   t, λ, μ = F(t), F(η[1]), F(η[2])
   ϵ = floatmin(F)
 
-  log_trans_prob::F = if (t < ϵ) || ((λ < ϵ) && (μ < ϵ))
+  log_trans_prob::F = if i == 0
+    if j == 0
+      0
+    else
+      -Inf
+    end
+  elseif (t < ϵ) || ((λ < ϵ) && (μ < ϵ))
     if i == j
       0
     else

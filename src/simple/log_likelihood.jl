@@ -22,7 +22,7 @@ If we observe `M` independent processes with same parameters `(λ, μ)`, then
 
 If the process is observed continously over time period `[0, T]`, log-likelihood
 simplifies to (Darwin, 1956, Equation (24)):
-``l(λ, μ | x) = B \\log λ + D \\log μ - (λ + μ) X + \\sum_{s=0}^{S - 1} n[s]``.
+``l(λ, μ | x) = \\sum_{s=0}^{S - 1} n[s] + B \\log λ + D \\log μ - (λ + μ) X``.
 `B` and `D` are the total number of births and deaths observed in `[0, T]`
 respectively. `X` is defined as ``n[0] (t[1] - t[0]) + n[1] (t[2] - t[1]) + ...
 + n[S - 1] (t[S] - t[S-1]) + n[S] (T - t[S])``.
@@ -41,40 +41,52 @@ function loglik(
 )::F where {
   F <: AbstractFloat
 }
+  x.sum_log_n +
   x.tot_births * log(η[1]) +
   x.tot_deaths * log(η[2]) -
-  (η[1] + η[2]) * x.integrated_jump +
-  x.sum_log_n
+  (η[1] + η[2]) * x.integrated_jump
 end
 
 function loglik(
   η::Vector{F},
-  x::Vector{ObservationContinuousTime}
+  x::Vector{ObservationContinuousTime{F}}
 )::F where {
   F <: AbstractFloat
 }
-  mapreduce(y -> loglik(η, y), +, x)
+  B = zero(F)
+  D = zero(F)
+  T = zero(F)
+  N = zero(F)
+
+  for i = 1:length(x)
+    B += x[i].tot_births
+    D += x[i].tot_deaths
+    T += x[i].integrated_jump
+    N += x[i].sum_log_n
+  end
+
+  N + B * log(η[1]) + D * log(η[2]) - (η[1] + η[2]) * T
 end
 
 function loglik(
   η::Vector{F},
-  x::ObservationDiscreteTimeEven
+  x::ObservationDiscreteTimeEqual
 ) where {
   F <: AbstractFloat
 }
-  l = zeros(F, x.n)
+  ll = zeros(F, x.n)
 
   for i = 1:x.n
     itr = zip(x.state[1:(end - 1), i], x.state[2:end, i])
-    l[i] = mapreduce(y -> trans_prob(y..., x.u, η), +, itr)
+    ll[i] = mapreduce(y -> trans_prob(y..., x.u, η), +, itr)
   end
 
-  sum(l)
+  sum(ll)
 end
 
 function loglik(
   η::Vector{F},
-  x::ObservationDiscreteTimeUneven
+  x::ObservationDiscreteTimeUnequal
 ) where {
   F <: AbstractFloat
 }
@@ -84,7 +96,7 @@ end
 
 function loglik(
   η::Vector{F},
-  x::Vector{ObservationDiscreteTimeUneven}
+  x::Vector{ObservationDiscreteTimeUnequal}
 )::F where {
   F <: AbstractFloat
 }

@@ -71,7 +71,7 @@ end
 
 function gradient_hessian(
   η::Vector{F},
-  x::ObservationDiscreteTimeEven
+  x::ObservationDiscreteTimeEqual
 )::Tuple{Vector{F}, Symmetric{F, Matrix{F}}} where {
   F <: AbstractFloat
 }
