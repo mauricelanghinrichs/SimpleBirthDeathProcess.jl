@@ -1,5 +1,6 @@
 module SimpleBirthDeathProcess
   using LinearAlgebra
+  using Logging
   using SpecialFunctions
   using Statistics
 

@@ -156,7 +156,7 @@ function derivatives_mle(
   d1 = zero(F)
   d2 = zero(F)
 
-  for n = 1:x.n, s = 2:x.k
+  for n = 1:x.n, s = 2:size(x.state, 1)
     r1, r2 = derivatives_mle(μ, x.state[s - 1, n], x.state[s, n], x.u, θ)
     d1 += r1
     d2 += r2

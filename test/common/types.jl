@@ -40,7 +40,7 @@ end
   @test all(y.increment .== diff(x))
 end
 
-@testset "Constructor: Dicrete Time (equidistant sampling)" begin
+@testset "Constructor: Discrete Time (equidistant sampling)" begin
   u = 1
   x = [1000, 828, 710, 581, 426, 333]
 
@@ -71,7 +71,7 @@ end
   @test y.state == x
 end
 
-@testset "Constructor: Dicrete Time (unequally spaced time points)" begin
+@testset "Constructor: Discrete Time (unequally spaced time points)" begin
   t = [ 0.0, 1.0, 1.5, 3.0, 3.5, 4.0]
   x = [1000, 828, 710, 581, 426, 333]
 
