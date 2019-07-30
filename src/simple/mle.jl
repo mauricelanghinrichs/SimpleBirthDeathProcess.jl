@@ -22,7 +22,7 @@ end
 
 function mle(
   x::ObservationDiscreteTimeEqual;
-  start::Float64=zero(Float64)
+  μ::Float64=zero(Float64)
 )::Vector{Float64}
   # this is the maximum likelihood estimator of θ = (λ - μ)
   α = sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])
@@ -48,26 +48,24 @@ function mle(
     end
   end
 
-  μ = start
-
   if μ <= 0
     # use the second moment to get an approximation of ψ = λ + μ
     # we know that V[N_{k} / N_{k-1}] = ψ * α * (α - 1) / (N_{k-1} * θ)
     v = mean(x.state[1:(end - 1), :] .*
              (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
 
-    if abs(θ) > floatmin(Float64)
-      ψ = θ * v / (α * (α - 1))
-      μ = (ψ - θ) / 2
+    μ = if abs(θ) > floatmin(Float64)
+      # ψ = θ * v / (α * (α - 1))
+      (θ * v / (α * (α - 1)) - θ) / 2
     else
-      μ = v / (2 * x.u)
+      v / (2 * x.u)
     end
 
     if (μ < 0) || (θ + μ <= 0) || isnan(μ) || isinf(μ)
-      if θ > 0
-        μ = 1.0e-16
+      μ = if θ > 0
+        1.0e-16
       else
-        μ = 1.0e-16 - θ
+        1.0e-16 - θ
       end
     end
   end
@@ -130,7 +128,7 @@ function mle(
   if !keep_going
     @warn string("It was not possible to find a new positive candidate value. ",
                  "Solution is not a global optimum! ",
-                 "Restart the algorithm from a different initial point.")
+                 "Restart the algorithm from a different starting point.")
   elseif counter > max_iter
     @warn string("Maximum number of iterations reached. ",
                  "(iterations = ", max_iter, "; |first derivative| = ", absval,
