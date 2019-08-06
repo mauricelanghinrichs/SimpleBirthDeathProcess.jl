@@ -1,11 +1,14 @@
 language: julia
 
 julia:
+  - 1.0
   - 1.1
+  - nightly
 
 os:
   - linux
   - osx
+  - windows
 
 notifications:
   email: false
