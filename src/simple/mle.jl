@@ -29,50 +29,63 @@ function mle(
   θ = log(α) / x.u
 
   # check that the log-likelihood function is not monotonic
-  if θ > 0
-    if loglik([θ, zero(Float64)], x) > loglik([θ + 1.0e-4, 1.0e-4], x)
-      return [θ, zero(Float64)]
-    end
-  elseif θ < 0
+  max_value = zero(Float64)
+  if θ < 0
     if isinf(θ)
       # population went immediately extinct and MLE does not exist
       return [zero(Float64), Float64(Inf)]
     end
 
-    if loglik([zero(Float64), -θ], x) > loglik([1.0e-4, 1.0e-4 - θ], x)
+    max_value = loglik([zero(Float64), -θ], x)
+
+    if max_value > loglik([1.0e-4, 1.0e-4 - θ], x)
       return [zero(Float64), -θ]
     end
+  elseif θ > 0
+    max_value = loglik([θ, zero(Float64)], x)
+
+    if max_value > loglik([θ + 1.0e-4, 1.0e-4], x)
+      return [θ, zero(Float64)]
+    end
   else
-    if loglik(zeros(Float64, 2), x) > loglik([1.0e-4, 1.0e-4], x)
+    max_value = loglik(zeros(Float64, 2), x)
+
+    if max_value > loglik([1.0e-4, 1.0e-4], x)
       return zeros(Float64, 2)
     end
   end
 
   if μ <= 0
-    # use the second moment to get an approximation of ψ = λ + μ
-    # we know that V[N_{k} / N_{k-1}] = ψ * α * (α - 1) / (N_{k-1} * θ)
-    v = mean(x.state[1:(end - 1), :] .*
-             (x.state[2:end, :] ./ x.state[1:(end - 1), :] .- α).^2)
-
-    μ = if abs(θ) > floatmin(Float64)
-      # ψ = θ * v / (α * (α - 1))
-      (θ * v / (α * (α - 1)) - θ) / 2
+    # line search for a good starting value of μ
+    μ = if θ < 0
+      -θ
     else
-      v / (2 * x.u)
+      zero(Float64)
     end
 
-    if (μ < 0) || (θ + μ <= 0) || isnan(μ) || isinf(μ)
-      μ = if θ > 0
-        1.0e-16
+    lb = μ + 1.0e-5
+    ub = lb + 99.0
+
+    old_value = max_value
+    new_value = zero(Float64)
+
+    for candidate = lb:1.0:ub
+      new_value = loglik([θ + candidate; candidate], x)
+
+      if new_value > max_value
+        μ = candidate
+        max_value = new_value
       else
-        1.0e-16 - θ
+        break
       end
+
+      old_value = new_value
     end
   end
 
   # Newton-Raphson method parameters
   γ = one(Float64)
-  ϵ = 1.0e-6
+  ϵ = 1.0e-8
   max_iter = 100
   tot_iter = 1
   neg_iter = 1_000

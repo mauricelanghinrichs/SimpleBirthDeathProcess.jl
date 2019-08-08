@@ -177,8 +177,19 @@ process.
     logexpm1(θ + ω) + log1mexp(θ - ω) - 2 * logexpm1(θ)
   end
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω +
-  (i + j) * log(expm1(θ) / expm1(θ + ω)) +
+  v1 = if θ > 0
+    logexpm1(θ)
+  else
+    log1mexp(θ)
+  end
+
+  v2 = if (θ + ω) > 0
+    logexpm1(θ + ω)
+  else
+    log1mexp(θ + ω)
+  end
+
+  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω + (i + j) * (v1 - v2) +
   log_hypergeometric(a, b, x)
 end
 
@@ -207,8 +218,19 @@ process when terms are alternating in sign.
       logexpm1(log1pexp(2 * θ) - (θ + log(F(2)))) -
       log((λ - μ)^2)
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω +
-  (i + j) * log(expm1(θ) / expm1(θ + ω)) +
+  v1 = if θ > 0
+    logexpm1(θ)
+  else
+    log1mexp(θ)
+  end
+
+  v2 = if (θ + ω) > 0
+    logexpm1(θ + ω)
+  else
+    log1mexp(θ + ω)
+  end
+
+  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω + (i + j) * (v1 - v2) +
   log_meixner_ortho_poly(a, b, x)
 end
 
@@ -244,7 +266,22 @@ death process.
   I <: Integer,
   F <: AbstractFloat
 }
-  i * log(expm1((λ - μ) * t) / expm1(log(λ / μ) + (λ - μ) * t))
+  θ = (λ - μ) * t
+  ω = log(λ / μ)
+
+  v1 = if θ > 0
+    logexpm1(θ)
+  else
+    log1mexp(θ)
+  end
+
+  v2 = if (θ + ω) > 0
+    logexpm1(θ + ω)
+  else
+    log1mexp(θ + ω)
+  end
+
+  i * (v1 - v2)
 end
 
 """
