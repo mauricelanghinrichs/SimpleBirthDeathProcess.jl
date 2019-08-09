@@ -1,8 +1,3 @@
-include("death_rate_zero.jl")
-include("birth_rate_zero.jl")
-include("equal_rates.jl")
-include("unequal_rates.jl")
-
 """
     gradient_hessian(η, i, j, t)
 
@@ -71,15 +66,35 @@ end
 
 function gradient_hessian(
   η::Vector{F},
-  x::ObservationDiscreteTimeEqual
+  x::ObservationDiscreteTimeEqual{F, I}
 )::Tuple{Vector{F}, Symmetric{F, Matrix{F}}} where {
-  F <: AbstractFloat
+  F <: AbstractFloat,
+  I <: Integer
 }
   ∇ = fill(zero(Float64), 2)
   H = fill(zero(Float64), (2, 2))
 
   for n = 1:x.n, s = 2:size(x.state, 1)
     a, b = gradient_hessian(η, x.state[s - 1, n], x.state[s, n], x.u)
+    ∇ += a
+    H += b
+  end
+
+  ∇, Symmetric(H)
+end
+
+function gradient_hessian(
+  η::Vector{F},
+  x::Vector{ObservationDiscreteTimeEqual{F, I}}
+)::Tuple{Vector{F}, Symmetric{F, Matrix{F}}} where {
+  F <: AbstractFloat,
+  I <: Integer
+}
+  ∇ = fill(zero(Float64), 2)
+  H = fill(zero(Float64), (2, 2))
+
+  for m = 1:length(x), n = 1:x[m].n, s = 2:size(x[m].state, 1)
+    a, b = gradient_hessian(η, x[m].state[s - 1, n], x[m].state[s, n], x[m].u)
     ∇ += a
     H += b
   end

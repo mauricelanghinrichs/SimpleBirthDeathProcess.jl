@@ -5,86 +5,64 @@ Given an observed sample `x`, return the maximum likelihood estimate (MLE) of a
 simple birth and death process.
 """
 function mle(
-  x::ObservationContinuousTime
-)::Vector{Float64}
-  [x.tot_births / x.integrated_jump, x.tot_deaths / x.integrated_jump]
+  x::ObservationContinuousTime{F}
+)::Vector{Float64} where {
+  F <: AbstractFloat
+}
+  [x.tot_births / x.integrated_jump; x.tot_deaths / x.integrated_jump]
 end
 
 function mle(
-  x::Vector{ObservationContinuousTime}
-)::Vector{Float64}
+  x::Vector{ObservationContinuousTime{F}}
+)::Vector{Float64} where {
+  F <: AbstractFloat
+}
   B = sum(y -> y.tot_births, x)
   D = sum(y -> y.tot_deaths, x)
   T = sum(y -> y.integrated_jump, x)
 
-  [B / T, D / T]
+  [B / T; D / T]
 end
 
 function mle(
-  x::ObservationDiscreteTimeEqual;
-  μ::Float64=zero(Float64)
-)::Vector{Float64}
+  x::ObservationDiscreteTimeEqual{F, I};
+  init::F=zero(F)
+)::Vector{F} where {
+  F <: AbstractFloat,
+  I <: Integer
+}
   # this is the maximum likelihood estimator of θ = (λ - μ)
   α = sum(x.state[2:end, :]) / sum(x.state[1:(end - 1), :])
-  θ = log(α) / x.u
+  θ::F = log(α) / x.u
 
-  # check that the log-likelihood function is not monotonic
-  max_value = zero(Float64)
+  # check if the log-likelihood function is monotonically decreasing
   if θ < 0
     if isinf(θ)
       # population went immediately extinct and MLE does not exist
-      return [zero(Float64), Float64(Inf)]
+      return [zero(F); F(Inf)]
     end
 
-    max_value = loglik([zero(Float64), -θ], x)
-
-    if max_value > loglik([1.0e-4, 1.0e-4 - θ], x)
-      return [zero(Float64), -θ]
+    if loglik([zero(F); -θ], x) > loglik([F(1.0e-4); F(1.0e-4 - θ)], x)
+      return [zero(F); -θ]
     end
   elseif θ > 0
-    max_value = loglik([θ, zero(Float64)], x)
-
-    if max_value > loglik([θ + 1.0e-4, 1.0e-4], x)
-      return [θ, zero(Float64)]
+    if loglik([θ; zero(F)], x) > loglik([F(θ + 1.0e-4); F(1.0e-4)], x)
+      return [θ; zero(F)]
     end
   else
-    max_value = loglik(zeros(Float64, 2), x)
-
-    if max_value > loglik([1.0e-4, 1.0e-4], x)
-      return zeros(Float64, 2)
+    if loglik(zeros(F, 2), x) > loglik([F(1.0e-4); F(1.0e-4)], x)
+      return zeros(F, 2)
     end
   end
 
-  if μ <= 0
-    # line search for a good starting value of μ
-    μ = if θ < 0
-      -θ
-    else
-      zero(Float64)
-    end
-
-    lb = μ + 1.0e-5
-    ub = lb + 99.0
-
-    old_value = max_value
-    new_value = zero(Float64)
-
-    for candidate = lb:1.0:ub
-      new_value = loglik([θ + candidate; candidate], x)
-
-      if new_value > max_value
-        μ = candidate
-        max_value = new_value
-      else
-        break
-      end
-
-      old_value = new_value
-    end
+  μ = if init <= 0
+    golden_section_search(θ, x)
+  else
+    init
   end
 
   # Newton-Raphson method parameters
-  γ = one(Float64)
+  γ = one(F)
   ϵ = 1.0e-8
   max_iter = 100
   tot_iter = 1
@@ -148,228 +126,208 @@ function mle(
                  "). Solution might not be a global optimum.")
   end
 
-  [θ + μ, μ]
+  [θ + μ; μ]
 end
 
-"""
-    derivatives_mle(μ, θ, x)
-
-Compute the first and second derivatives of the log-likelihood of the sample
-`x` evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
-"""
-function derivatives_mle(
-  μ::F,
-  θ::F,
-  x::ObservationDiscreteTimeEqual
-)::Tuple{F, F} where {
-  F <: AbstractFloat
-}
-  d1 = zero(F)
-  d2 = zero(F)
-
-  for n = 1:x.n, s = 2:size(x.state, 1)
-    r1, r2 = derivatives_mle(μ, x.state[s - 1, n], x.state[s, n], x.u, θ)
-    d1 += r1
-    d2 += r2
-  end
-
-  d1, d2
-end
-
-"""
-    derivatives_mle(μ, i, j, t, θ)
-
-Compute the first and second derivatives of the log-transition probability
-evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
-"""
-function derivatives_mle(
-  μ::F,
-  i::I,
-  j::I,
-  t::F,
-  θ::F
-)::Tuple{F, F} where {
+function mle(
+  x::Vector{ObservationDiscreteTimeEqual{F, I}};
+  init::Vector{F}=zeros(F, 2)
+)::Vector{F} where {
   F <: AbstractFloat,
   I <: Integer
 }
-  ϵ = floatmin(F)
+  # compute a weighted average of MLEs as an approximate starting point
+  α = zero(Float64)
+  w = zero(Float64)
+  for y = x
+    α += log(sum(y.state[2:end, :]) / sum(y.state[1:(end - 1), :]))
+    w += y.u
+  end
 
-  if abs(θ) <= ϵ
-    # TODO: Improve numerical accuracy of formulas
-    if (F === BigFloat) || (μ * t > 0.001)
-      derivatives_equal_rates(μ, F(i), F(j), t)
-    else
-      setprecision(BigFloat, 256) do
-        m = BigFloat(μ)
-        a = BigFloat(i)
-        b = BigFloat(j)
-        s = BigFloat(t)
+  θ::F = α / w
 
-        d1, d2 = derivatives_equal_rates(m, a, b, s)
+  η = if (init[1] <= 0) && (init[2] <= 0)
+    μ = golden_section_search(θ, x)
+    [θ + μ; μ]
+  else
+    copy(init)
+  end
 
-        F(d1), F(d2)
+  # Newton-Raphson method parameters
+  γ = one(F)
+  ϵ = 1.0e-8
+  max_iter = 100
+  tot_iter = 1
+  neg_iter = 1_000
+  keep_going = true
+
+  # first iteration of the Newton-Raphson method
+  ∇, H = gradient_hessian(η, x)
+  rmse = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+
+  step_size = \(H, -∇)
+  candidate = η .+ step_size
+
+  # it might happen that we overshoot already at the first try
+  # use a different counter from the main iteration
+  counter = 1
+  while ((candidate[1] < 0) || (candidate[2] < 0)) && (counter <= neg_iter)
+    γ /= 2
+    candidate = η .+ γ .* step_size
+    counter += 1
+  end
+
+  if counter > neg_iter
+    keep_going = false
+  end
+
+  while keep_going && (rmse > ϵ) && (tot_iter <= max_iter)
+    ∇, H = gradient_hessian(candidate, x)
+    tmp = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+
+    if tmp <= rmse
+      rmse = tmp
+      copy!(η, candidate)
+
+      step_size = \(H, -∇)
+      candidate .+= γ .* step_size
+
+      counter = 1
+      while ((candidate[1] < 0) || (candidate[2] < 0)) && (counter <= neg_iter)
+        γ /= 2
+        candidate = η .+ γ .* step_size
+        counter += 1
       end
+
+      if counter > neg_iter
+        keep_going = false
+      end
+    else
+      # by definition rmse must be lower at every step. If this is not the case
+      # we took a too big step at the previous iteration
+      γ /= 2
+      copy!(candidate, η)
+    end
+
+    tot_iter += 1
+  end
+
+  if !keep_going
+    @warn string("It was not possible to find a new positive candidate value. ",
+                 "Solution is not a global optimum! ",
+                 "Restart the algorithm from a different starting point.")
+  elseif counter > max_iter
+    @warn string("Maximum number of iterations reached. ",
+                 "(iterations = ", max_iter, "; RMSE(gradient) = ", rmse,
+                 "). Solution might not be a global optimum.")
+  end
+
+  # compare with the value at the border
+  θ = η[1] - η[2]
+
+  if θ < 0
+    if !isinf(θ)
+      if loglik(η, x) > loglik([zero(F); -θ], x)
+        η
+      else
+        [zero(F); -θ]
+      end
+    else
+      [zero(F); F(Inf)]
+    end
+  elseif θ > 0
+    if !isinf(θ)
+      if loglik(η, x) > loglik([θ; zero(F)], x)
+        η
+      else
+        [θ; zero(F)]
+      end
+    else
+      [F(Inf), zero(F)]
     end
   else
-    if (F === BigFloat) || (log((θ + μ) / μ) / (θ * t) < 1_000)
-      derivatives_unequal_rates(μ, F(i), F(j), t, θ)
+    if loglik(η, x) > loglik(zeros(F, 2), x)
+      η
     else
-      setprecision(BigFloat, 256) do
-        m = BigFloat(μ)
-        a = BigFloat(i)
-        b = BigFloat(j)
-        s = BigFloat(t)
-        v = BigFloat(θ)
-
-        d1, d2 = derivatives_unequal_rates(m, a, b, s, v)
-
-        F(d1), F(d2)
-      end
+      zeros(F, 2)
     end
   end
 end
 
 """
-    derivatives_equal_rates(μ, i, j, t)
+    golden_section_search(θ, x)
 
-Compute the first and second derivatives of the log-transition probability
-evaluated at the point `μ`. MLE of `θ` is zero.
+Given an observed sample `x` and a starting point `θ`, return a value
+(hopefully) close to the maximum likelihood estimate of `μ`.
+
+Converted Python code from https://en.wikipedia.org/wiki/Golden-section_search
 """
-function derivatives_equal_rates(
-  μ::F,
-  i::F,
-  j::F,
-  t::F
-)::Tuple{F, F} where {
-  F <: AbstractFloat
+function golden_section_search(
+  θ::F,
+  x
+)::F where {
+  F <: AbstractFloat,
 }
-  q0 = μ * t
+  # golden ratio
+  ϕ = F(1.618033988749895)
 
-  f1 = 1 + q0
-  f2 = 1 + 2 * q0
+  # 1 / ϕ
+  inv_ϕ = F(0.6180339887498949)
 
-  if j > 0
-    if (i > 1) && (j > 1)
-      q1 = log(μ * t)
+  # 1 / ϕ^2
+  inv_ϕ2 = F(0.38196601125010515)
 
-      a, b = (j <= i) ? (i, j) : (j, i)
+  # log(1 / ϕ) = - log(ϕ)
+  log_inv_ϕ = F(-0.48121182505960347)
 
-      p1, p2, p3 = if q1 <= 0
-        log_hypergeometric_joint(a, b, logexpm1(-2 * q1))
-      else
-        log_meixner_ortho_poly_joint(a, b, 2 * q1)
-      end
+  # tolerance
+  ϵ = F(1.0e-5)
 
-      c1 = i * j * exp(p2 - p1) / (i + j - 1)
-      c2 = 2 * i * j * exp(p2 - p1 - 2 * q1) / (i + j - 1)
-      c3 = 2 * (i - 1) * (j - 1) * exp(p3 - p2 - 2 * q1) / (i + j - 2)
-
-      d1 = ((i + j) / f1 - c2) / μ
-      d2 = -((i + j) * f2 / f1^2 - c2 * (3 + c3 - c2)) / μ^2
-
-      d1, d2
-    else
-      # hypergeometric(i, j, z, k=1) is 1 + z = q0^(-2)
-      # hypergeometric(i - 1, j - 1, z, k=0) is one
-      # hypergeometric(i - 2, j - 2, z, k=-1) is zero
-      c1 = i * j * 2 / (i + j - 1)
-
-      d1 = ((i + j) / f1 - c1) / μ
-      d2 = -((i + j) * f2 / f1^2 - c1 * (3 - c1)) / μ^2
-
-      d1, d2
-    end
+  # starting interval
+  a = if θ <= 0
+    -θ
   else
-    d1 = i / (μ * f1)
-    d2 = -i * f2 / (μ * f1)^2
-
-    d1, d2
+    zero(F)
   end
-end
 
-"""
-    derivatives_unequal_rates(μ, i, j, t, θ)
+  b = a + F(100)
 
-Compute the first and second derivatives of the log-transition probability
-evaluated at the point `μ`. MLE of `λ` is fixed at `θ + μ`.
-"""
-function derivatives_unequal_rates(
-  μ::F,
-  i::F,
-  j::F,
-  t::F,
-  θ::F
-)::Tuple{F, F} where {
-  F <: AbstractFloat
-}
-  λ = θ + μ
-  a, b = (j <= i) ? (i, j) : (j, i)
+  h = b - a
 
-  q0 = log(λ * μ)
-  q1 = log(λ / μ)
-  q2 = θ * t
+  c = a + h * inv_ϕ2
+  d = a + h * inv_ϕ
 
-  k0 = expm1(q2)
-  k1 = expm1(q2 + q1)
-  k2 = expm1(q2 - q1)
+  yc = loglik([θ + c; c], x)
+  yd = loglik([θ + d; d], x)
 
-  c1 = i * j / (i + j - 1)
-  c2 = (i - 1) * (j - 1) / (i + j - 2)
-  c3 = zero(F)
+  # required steps to achieve tolerance
+  n = ceil(Int, log(ϵ / h) / log_inv_ϕ)
 
-  ξ = q1 / θ
+  for k = 1:n
+    if yc > yd
+      b = d
+      d = c
+      yd = yc
 
-  if j > 0
-    u1 = zero(F)
-    u2 = zero(F)
-    fa = zero(F)
+      h *= inv_ϕ
+      c = a + h * inv_ϕ2
 
-    if (i > 1) && (j > 1)
-      p1, p2, p3 = if t <= ξ
-        y = log(-(k1 / k0) * (k2 / k0))
-        log_hypergeometric_joint(a, b, y)
-      else
-        y = q0 - q2 + 2 * log(k0 / θ)
-        log_meixner_ortho_poly_joint(a, b, y)
-      end
-
-      u1 = p2 - p1
-      u2 = p3 - p2
-
-      c3 = c1 * exp(u1)
-
-      fa = c2 * exp(u2) - c3
+      yc = loglik([θ + c; c], x)
     else
-      # hypergeometric(i - 1, j - 1, z, k=0) is one because either i or j is one
-      # hypergeometric(i - 2, j - 2, z, k=-1) is zero
-      u1 = q0 - q2 + 2 * log(k0 / θ)
-      u2 = -Inf
+      a = c
+      c = d
+      yc = yd
 
-      c3 = c1 * exp(u1)
+      h *= inv_ϕ
+      d = a + h * inv_ϕ
 
-      fa = -c3
+      yd = loglik([θ + d; d], x)
     end
+  end
 
-    w0 = θ / (μ * λ)
-    w1 = w0 * (i * exp(q2 + q1) + j) / k1
-    w2 = - θ * ((θ + 2 * μ) * (i * exp(2 * (q2 + q1)) - j) -
-                2 * (i * λ - j * μ) * exp(q2 + q1)) / (μ * λ * k1)^2
-
-    m0 = (θ / (μ * λ * expm1(q2)))^2
-    m1 = - m0 * (θ + 2 * μ) * exp(q2)
-    m2 = m0 * (θ^2 + 3 * (θ + 2 * μ)^2) * exp(q2) / (2 * μ * λ)
-
-    d1 = w1 + c3 * m1
-    d2 = w2 + c3 * (m2 + m1^2 * fa)
-
-    d1, d2
+  if yc > yd
+    (a + d) / 2
   else
-    # hypergeometric(i - 1, j - 1, z, k=0) and
-    # hypergeometric(i - 2, j - 2, z, k=-1) are both zero
-    d1 = θ * i * exp(q2 + q1) / (k1 * μ * λ)
-    d2 = -θ * ((θ + 2 * μ) * i * exp(2 * (q2 + q1)) -
-               2 * i * λ * exp(q2 + q1)) / (μ * λ * k1)^2
-
-    d1, d2
+    (c + b) / 2
   end
 end

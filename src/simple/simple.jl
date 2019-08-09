@@ -1,4 +1,4 @@
-include("gradient_hessian/gradient_hessian.jl")
+include("derivatives/derivatives.jl")
 include("log_likelihood.jl")
 include("simulation.jl")
 include("transition_probabilities.jl")

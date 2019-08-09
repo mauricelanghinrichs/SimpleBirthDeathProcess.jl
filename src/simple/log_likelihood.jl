@@ -37,7 +37,7 @@ process. Biometrika, 43(1/2), 23-31. https://doi.org/10.2307/2333575
 """
 function loglik(
   η::Vector{F},
-  x::ObservationContinuousTime
+  x::ObservationContinuousTime{F}
 )::F where {
   F <: AbstractFloat
 }
@@ -70,9 +70,10 @@ end
 
 function loglik(
   η::Vector{F},
-  x::ObservationDiscreteTimeEqual
+  x::ObservationDiscreteTimeEqual{F, I}
 ) where {
-  F <: AbstractFloat
+  F <: AbstractFloat,
+  I <: Integer
 }
   ll = zeros(F, x.n)
 
@@ -86,9 +87,20 @@ end
 
 function loglik(
   η::Vector{F},
-  x::ObservationDiscreteTimeUnequal
+  x::Vector{ObservationDiscreteTimeEqual{F, I}}
+)::F where {
+  F <: AbstractFloat,
+  I <: Integer
+}
+  mapreduce(y -> loglik(η, y), +, x)
+end
+
+function loglik(
+  η::Vector{F},
+  x::ObservationDiscreteTimeUnequal{F, I}
 ) where {
-  F <: AbstractFloat
+  F <: AbstractFloat,
+  I <: Integer
 }
   itr = zip(x.state[1:(end - 1), i], x.state[2:end, i], x.waiting_time)
   mapreduce(y -> trans_prob(y..., η), +, itr)
@@ -96,9 +108,10 @@ end
 
 function loglik(
   η::Vector{F},
-  x::Vector{ObservationDiscreteTimeUnequal}
+  x::Vector{ObservationDiscreteTimeUnequal{F, I}}
 )::F where {
-  F <: AbstractFloat
+  F <: AbstractFloat,
+  I <: Integer
 }
   mapreduce(y -> loglik(η, y), +, x)
 end

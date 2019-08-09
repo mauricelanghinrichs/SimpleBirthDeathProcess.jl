@@ -1,0 +1,6 @@
+include("birth_rate_zero.jl")
+include("death_rate_zero.jl")
+include("equal_rates.jl")
+include("unequal_rates.jl")
+include("gradient_hessian.jl")
+include("univariate.jl")
