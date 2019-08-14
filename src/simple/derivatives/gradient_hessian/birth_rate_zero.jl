@@ -1,8 +1,8 @@
 """
     gradient_hessian_λ_zero(μ, i, j, t)
 
-Compute the gradient of the log-probability of a simple birth and death process
-evaluated at the point ``η = (0, μ)^{\\prime}``. Variable `i` is
+Compute the gradient and Hessian of the log-probability of a simple birth and
+death process evaluated at the point ``η = (0, μ)^{\\prime}``. Variable `i` is
 the initial population size, `j` is the final population size, and `t` is the
 elapsed time.
 """

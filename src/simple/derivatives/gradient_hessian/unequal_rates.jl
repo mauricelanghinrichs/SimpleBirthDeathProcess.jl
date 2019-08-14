@@ -1,8 +1,8 @@
 """
     gradient_hessian_unequal_rates(η, i, j, t)
 
-Compute the gradient of the log-probability of a simple birth and death process
-evaluated at the point ``η = (λ, μ)^{\\prime}``. Variable `i` is
+Compute the gradient and Hessian of the log-probability of a simple birth and
+death process evaluated at the point ``η = (λ, μ)^{\\prime}``. Variable `i` is
 the initial population size, `j` is the final population size, and `t` is the
 elapsed time.
 """
@@ -26,10 +26,10 @@ end
 """
     gradient_hessian_v1(η, i, j, t)
 
-Compute the gradient of the log-probability of a simple birth and death process
-evaluated at the point ``η = (λ, μ)^{\\prime}`` where `η[1] > η[2]`. Variable
-`i` is the initial population size, `j` is the final population size, and `t`
-is the elapsed time.
+Compute the gradient and Hessian of the log-probability of a simple birth and
+death process evaluated at the point ``η = (λ, μ)^{\\prime}`` where
+`η[1] > η[2]`. Variable `i` is the initial population size, `j` is the final
+population size, and `t` is the elapsed time.
 """
 function gradient_hessian_v1(
   η::Vector{F},
@@ -181,10 +181,10 @@ end
 """
     gradient_hessian_v2(η, i, j, t)
 
-Compute the gradient of the log-probability of a simple birth and death process
-evaluated at the point ``η = (λ, μ)^{\\prime}`` where `η[2] > η[1]`. Variable
-`i` is the initial population size, `j` is the final population size, and `t`
-is the elapsed time.
+Compute the gradient and Hessian of the log-probability of a simple birth and
+death process evaluated at the point ``η = (λ, μ)^{\\prime}`` where
+`μ > λ`. Variable `i` is the initial population size, `j` is the final
+population size, and `t` is the elapsed time.
 """
 function gradient_hessian_v2(
   η::Vector{F},

@@ -1,19 +1,19 @@
 # precise values were computed with Maple 2018.2.1
 @testset "Type stability" begin
   @testset for F = [Float32, Float64, BigFloat]
-    x, y = SimpleBirthDeathProcess.derivatives_mle(F(1), 1, 0, F(1), F(1))
+    x, y = SimpleBirthDeathProcess.univariate_derivatives(F(1), 1, 0, F(1), F(1))
     @test isa(x, F)
     @test isa(y, F)
 
-    x, y = SimpleBirthDeathProcess.derivatives_mle(F(1), 1, 0, F(1), F(0))
+    x, y = SimpleBirthDeathProcess.univariate_derivatives(F(1), 1, 0, F(1), F(0))
     @test isa(x, F)
     @test isa(y, F)
 
-    x, y = SimpleBirthDeathProcess.derivatives_mle(F(1.0e-6), 1, 0, F(1), F(1.0e-6))
+    x, y = SimpleBirthDeathProcess.univariate_derivatives(F(1.0e-6), 1, 0, F(1), F(1.0e-6))
     @test isa(x, F)
     @test isa(y, F)
 
-    x, y = SimpleBirthDeathProcess.derivatives_mle(F(1.0e-6), 1, 0, F(1), F(0))
+    x, y = SimpleBirthDeathProcess.univariate_derivatives(F(1.0e-6), 1, 0, F(1), F(0))
     @test isa(x, F)
     @test isa(y, F)
   end
@@ -70,7 +70,7 @@ end
 
   @testset for (b, (i, j)) = enumerate(u)
     @testset for (a, (t, μ)) = enumerate(v)
-      x, y = SimpleBirthDeathProcess.derivatives_mle(μ, i, j, t, 0.0)
+      x, y = SimpleBirthDeathProcess.univariate_derivatives(μ, i, j, t, 0.0)
       @test isapprox(x, m1[a, b], rtol=ϵ)
       @test isapprox(y, m2[a, b], rtol=ϵ)
     end
@@ -135,7 +135,7 @@ end
 
   @testset for (b, (i, j)) = enumerate(u)
     @testset for (a, (t, θ, λ)) = enumerate(v)
-      x, y = SimpleBirthDeathProcess.derivatives_mle(λ - θ, i, j, t, θ)
+      x, y = SimpleBirthDeathProcess.univariate_derivatives(λ - θ, i, j, t, θ)
       @test isapprox(x, m1[a, b], rtol=ϵ)
       @test isapprox(y, m2[a, b], rtol=ϵ)
     end
