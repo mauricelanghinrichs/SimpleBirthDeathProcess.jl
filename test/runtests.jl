@@ -1,12 +1,9 @@
-cd(dirname(@__FILE__))
-
 using LinearAlgebra
 using Random
 using Statistics
 using Test
 
-include("../src/SimpleBirthDeathProcess.jl")
-using .SimpleBirthDeathProcess
+using SimpleBirthDeathProcess
 
 Random.seed!(43314697)
 

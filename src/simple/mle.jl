@@ -55,21 +55,10 @@ function mle(
     end
   end
 
-  μ = if init <= 0
-    golden_section_search(θ, x)
+  μ = if (init <= 0) || (θ + init <= 0)
+    univariate_newton_raphson(golden_section_search(θ, x), θ, x)
   else
-    init
-  end
-
-  μ, is_negative, not_converged = univariate_newton_raphson(μ, θ, x)
-
-  if is_negative
-    @warn string("It was not possible to find a new positive candidate value. ",
-                 "Solution is not a global optimum! ",
-                 "Restart the algorithm from a different starting point.")
-  elseif not_converged
-    @warn string("Maximum number of iterations reached. ",
-                 "Solution might not be a global optimum.")
+    univariate_newton_raphson(init, θ, x)
   end
 
   [θ + μ; μ]
@@ -97,35 +86,16 @@ function mle(
 
   θ::F = α / w
 
-  η = if (init[1] <= 0) && (init[2] <= 0)
+  η = if (init[1] <= 0) || (init[2] <= 0)
     μ = golden_section_search(θ, x)
     [θ + μ; μ]
   else
     copy(init)
   end
 
-  not_converged = gradient_ascend!(η, x)
-
-  if not_converged
-    @warn string("Gradient ascend: Maximum number of iterations reached. ",
-                 "Solution might not be a global optimum.")
-  end
+  multivariate_newton_raphson!(η, x)
 
   θ = η[1] - η[2]
-
-  μ, is_negative, not_converged = univariate_newton_raphson(μ, θ, x)
-
-  if is_negative
-    @warn string("Newton-Raphson: ",
-                 "It was not possible to find a new positive candidate value. ",
-                 "Solution is not a global optimum! ",
-                 "Restart the algorithm from a different starting point.")
-  elseif not_converged
-    @warn string("Newton-Raphson: Maximum number of iterations reached. ",
-                 "Solution might not be a global optimum.")
-  end
-
-  η = [θ + μ; μ]
 
   # compare with the value at the border
   if θ < 0
@@ -236,114 +206,6 @@ function golden_section_search(
 end
 
 """
-    gradient_ascend!(η, x)
-
-Given an observed sample `x` and a starting point `η` return a value (hopefully)
-close to the maximum likelihood estimate.
-"""
-function gradient_ascend!(
-  η::Vector{F},
-  x
-)::Bool where {
-  F <: AbstractFloat
-}
-  old_value = copy(η)
-
-  δ = 1.0
-  ϵ = 1.0e-10
-
-  max_iter = 1_000
-  tot_iter = 1
-
-  while (δ > ϵ) && (tot_iter <= max_iter)
-    gradient_ascend_step!(η, x)
-    δ = norm(old_value - η) / norm(η)
-    copy!(old_value, η)
-    tot_iter += 1
-  end
-
-  tot_iter > max_iter
-end
-
-"""
-    gradient_ascend_step!(η, x)
-
-Perform one single step of a gradient ascend using a backtracking strategy.
-"""
-function gradient_ascend_step!(
-  η::Vector{F},
-  x
-) where {
-  F <: AbstractFloat
-}
-  ∇ = gradient(η, x)
-  y = zeros(F, 2)
-
-  # choose the maximum step size allowed
-  γ = one(F)
-
-  if (∇[1] < 0) && (∇[2] >= 0)
-    # we can move how much we want along the second axis but we cannot go
-    # into the negative values on the first axis
-    γ1 = - η[1] / ∇[1]
-
-    if γ1 >= 1
-      y[1] = η[1] + ∇[1]
-      y[2] = η[2] + ∇[2]
-    else
-      γ = γ1
-      y[2] = η[2] + γ * ∇[2]
-    end
-  elseif (∇[1] >= 0) && (∇[2] < 0)
-    # we can move how much we want along the first axis but we cannot go
-    # into the negative values on the second axis
-    γ2 = - η[2] / ∇[2]
-
-    if γ2 >= 1
-      y[1] = η[1] + ∇[1]
-      y[2] = η[2] + ∇[2]
-    else
-      γ = γ2
-      y[1] = η[1] + γ * ∇[1]
-    end
-  elseif (∇[1] < 0) && (∇[2] < 0)
-    # we can only move as much as one of the two values becomes zero
-    γ1 = - η[1] / ∇[1]
-    γ2 = - η[2] / ∇[2]
-
-    if (γ1 >= 1) && (γ2 >= 1)
-      y[1] = η[1] + ∇[1]
-      y[2] = η[2] + ∇[2]
-    elseif γ1 < γ2
-      γ = γ1
-      y[2] = η[2] + γ * ∇[2]
-    else
-      γ = γ2
-      y[1] = η[1] + γ * ∇[1]
-    end
-  end
-
-  max_iter = 100
-  tot_iter = 1
-
-  # Armijo–Goldstein condition value
-  t = dot(∇, ∇) / 2
-
-  while ((loglik(y, x) - loglik(η, x)) <= γ * t) && (tot_iter <= max_iter)
-    γ /= 2
-    y[1] = η[1] + γ * ∇[1]
-    y[2] = η[2] + γ * ∇[2]
-    tot_iter += 1
-  end
-
-  if tot_iter <= max_iter
-    copy!(η, y)
-  end
-
-  nothing
-end
-
-"""
     univariate_newton_raphson(μ, θ, x)
 
 Starting from the point `μ` find a new value `μ_max` such that
@@ -354,7 +216,7 @@ function univariate_newton_raphson(
   μ::F,
   θ::F,
   x
-)::Tuple{F, Bool, Bool} where {
+)::F where {
   F <: AbstractFloat
 }
   γ = one(F)
@@ -367,7 +229,7 @@ function univariate_newton_raphson(
   candidate = μ - d1 / d2
 
   # it might happen that we overshoot already at the first try
-  neg_iter = 1_000
+  neg_iter = 100
   counter = 1
   while ((candidate < 0) || (θ + candidate < 0)) && (counter <= neg_iter)
     γ /= 2
@@ -377,7 +239,7 @@ function univariate_newton_raphson(
 
   keep_going = counter <= neg_iter
 
-  max_iter = 100
+  max_iter = 1_000
   tot_iter = 1
 
   while keep_going && (absval > ϵ) && (tot_iter <= max_iter)
@@ -407,5 +269,97 @@ function univariate_newton_raphson(
     tot_iter += 1
   end
 
-  (μ, !keep_going, tot_iter > max_iter)
+  if !keep_going
+    @warn string("It was not possible to find a new positive candidate value. ",
+                 "Solution is not a global optimum! ",
+                 "Restart the algorithm from a different starting point.")
+  elseif tot_iter > max_iter
+    @warn string("Maximum number of iterations reached. ",
+                 "(iterations = ", max_iter, "; |first derivative| = ", absval,
+                 "). Solution might not be a global optimum.")
+  end
+
+  μ
+end
+
+"""
+    multivariate_newton_raphson!(η, x)
+
+Starting from the point `η` find a new value such that the log-likelihood
+function evaluated at `x` is maximized.
+"""
+function multivariate_newton_raphson!(
+  η::Vector{F},
+  x
+) where {
+  F <: AbstractFloat
+}
+  γ = one(F)
+  ϵ = 1.0e-8
+
+  # first iteration of the Newton-Raphson method
+  ∇, H = gradient_hessian(η, x)
+  rmse = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+
+  detH = H[1, 1] * H[2, 2] - H[2, 1]^2
+  invH = [H[2, 2] -H[2, 1]; -H[2, 1] H[1, 1]] ./ detH
+  step_size = invH * ∇
+  candidate = η - step_size
+
+  # it might happen that we overshoot already at the first try
+  neg_iter = 100
+  counter = 1
+  while ((candidate[1] < 0) || (candidate[2] < 0)) && (counter <= neg_iter)
+    γ /= 2
+    candidate = η - γ * step_size
+    counter += 1
+  end
+
+  keep_going = counter <= neg_iter
+
+  max_iter = 1_000
+  tot_iter = 1
+
+  while keep_going && (rmse > ϵ) && (tot_iter <= max_iter)
+    ∇, H = gradient_hessian(candidate, x)
+    tmp = sqrt((∇[1]^2 + ∇[2]^2) / 2)
+
+    if tmp <= rmse
+      rmse = tmp
+      copy!(η, candidate)
+
+      detH = H[1, 1] * H[2, 2] - H[2, 1]^2
+      invH = [H[2, 2] -H[2, 1]; -H[2, 1] H[1, 1]] ./ detH
+      step_size = invH * ∇
+      candidate -= γ * step_size
+
+      counter = 1
+      while ((candidate[1] < 0) || (candidate[2] < 0)) && (counter <= neg_iter)
+        γ /= 2
+        candidate = η - γ * step_size
+        counter += 1
+      end
+
+      keep_going = counter <= neg_iter
+    else
+      # by definition first derivative must always decrease. If this is
+      # not the case we took a too big step at the previous iteration
+      γ /= 2
+      copy!(candidate, η)
+    end
+
+    tot_iter += 1
+  end
+
+  if !keep_going
+    @warn string("It was not possible to find a new positive candidate value. ",
+                 "Solution is not a global optimum! ",
+                 "Restart the algorithm from a different starting point.")
+  elseif tot_iter > max_iter
+    @warn string("Maximum number of iterations reached. ",
+                 "(iterations = ", max_iter, "; |gradient| = ", rmse,
+                 "). Solution might not be a global optimum.")
+  end
+
+  nothing
 end
