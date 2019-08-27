@@ -71,11 +71,6 @@ function mle(
   F <: AbstractFloat,
   I <: Integer
 }
-  # Hessian matrix is in general not positive definite, therefore we cannot
-  # implement the bivariate Newton-Raphson method. We will first perform a
-  # backtracking gradient ascend and subsequently refine our search with the
-  # univariate Newton-Raphson method.
-
   # compute a weighted average of MLEs as an approximate starting point
   α = zero(Float64)
   w = zero(Float64)
@@ -273,7 +268,7 @@ function univariate_newton_raphson(
     @warn string("It was not possible to find a new positive candidate value. ",
                  "Solution is not a global optimum! ",
                  "Restart the algorithm from a different starting point.")
-  elseif tot_iter > max_iter
+  elseif (tot_iter > max_iter) && (absval >= 1.0e-6)
     @warn string("Maximum number of iterations reached. ",
                  "(iterations = ", max_iter, "; |first derivative| = ", absval,
                  "). Solution might not be a global optimum.")
@@ -355,7 +350,7 @@ function multivariate_newton_raphson!(
     @warn string("It was not possible to find a new positive candidate value. ",
                  "Solution is not a global optimum! ",
                  "Restart the algorithm from a different starting point.")
-  elseif tot_iter > max_iter
+  elseif (tot_iter > max_iter) && (rmse >= 1.0e-6)
     @warn string("Maximum number of iterations reached. ",
                  "(iterations = ", max_iter, "; |gradient| = ", rmse,
                  "). Solution might not be a global optimum.")
