@@ -12,7 +12,7 @@ simplifies into a special case.
 ) where {
   I <: Integer
 }
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) - (i + j) * log(2)
+  loggamma(i + j) - loggamma(i) - loggamma(j + 1) - (i + j) * log(2)
 end
 
 """
@@ -34,8 +34,8 @@ process.
 
   θ = λ * t
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + (i + j) * log(θ / (1 + θ)) +
-  log_hypergeometric(a, b, logexpm1(-2 * log(θ)))
+  loggamma(i + j) - loggamma(i) - loggamma(j + 1) +
+  (i + j) * log(θ / (1 + θ)) + log_hypergeometric(a, b, logexpm1(-2 * log(θ)))
 end
 
 """
@@ -57,8 +57,8 @@ process when terms are alternating in sign.
 
   θ = λ * t
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + (i + j) * log(θ / (1 + θ)) +
-  log_meixner_ortho_poly(a, b, 2 * log(θ))
+  loggamma(i + j) - loggamma(i) - loggamma(j + 1) +
+  (i + j) * log(θ / (1 + θ)) + log_meixner_ortho_poly(a, b, 2 * log(θ))
 end
 
 """
@@ -108,8 +108,8 @@ Evaluate the logarithm of the transition probability of a pure-birth process.
   I <: Integer,
   F <: AbstractFloat
 }
-  lgamma(j) + (j - i) * logexpm1(λ * t) -
-  (lgamma(i) + lgamma(j - i + 1) + j * λ * t)
+  loggamma(j) + (j - i) * logexpm1(λ * t) -
+  (loggamma(i) + loggamma(j - i + 1) + j * λ * t)
 end
 
 """
@@ -126,8 +126,8 @@ Evaluate the logarithm of the transition probability of a pure-death process.
   I <: Integer,
   F <: AbstractFloat
 }
-  lgamma(i + 1) + (i - j) * logexpm1(μ * t) -
-  (lgamma(j + 1) + lgamma(i - j + 1) + i * μ * t)
+  loggamma(i + 1) + (i - j) * logexpm1(μ * t) -
+  (loggamma(j + 1) + loggamma(i - j + 1) + i * μ * t)
 end
 
 """
@@ -146,8 +146,8 @@ unlikely event (let's say impossible) but it simplifies into a special case.
   I <: Integer,
   F <: AbstractFloat
 }
-  lgamma(i + j) + i * log(μ) + j * log(λ) -
-  (lgamma(i) + lgamma(j + 1) + (i + j) * log(λ + μ))
+  loggamma(i + j) + i * log(μ) + j * log(λ) -
+  (loggamma(i) + loggamma(j + 1) + (i + j) * log(λ + μ))
 end
 
 """
@@ -189,8 +189,8 @@ process.
     log1mexp(θ + ω)
   end
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω + (i + j) * (v1 - v2) +
-  log_hypergeometric(a, b, x)
+  loggamma(i + j) - loggamma(i) - loggamma(j + 1) + j * ω +
+  (i + j) * (v1 - v2) + log_hypergeometric(a, b, x)
 end
 
 """
@@ -230,8 +230,8 @@ process when terms are alternating in sign.
     log1mexp(θ + ω)
   end
 
-  lgamma(i + j) - lgamma(i) - lgamma(j + 1) + j * ω + (i + j) * (v1 - v2) +
-  log_meixner_ortho_poly(a, b, x)
+  loggamma(i + j) - loggamma(i) - loggamma(j + 1) + j * ω +
+  (i + j) * (v1 - v2) + log_meixner_ortho_poly(a, b, x)
 end
 
 """

@@ -48,7 +48,7 @@ end
 
   @test isa(y, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual)
   @test y.n == 1
-  @test y.k == 6
+  @test y.k == 5
   @test y.u == 1
   @test isa(y.state, Matrix{Int})
   @test y.state == reshape(x, 6, 1)
@@ -65,7 +65,7 @@ end
 
   @test isa(y, SimpleBirthDeathProcess.ObservationDiscreteTimeEqual)
   @test y.n == 2
-  @test y.k == 6
+  @test y.k == 5
   @test y.u == 1
   @test isa(y.state, Matrix{Int})
   @test y.state == x

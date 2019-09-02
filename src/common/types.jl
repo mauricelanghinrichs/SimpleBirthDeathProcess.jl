@@ -146,7 +146,7 @@ function observation_discrete_time_equal(
   k = length(x)
   F = typeof(float(u))
 
-  ObservationDiscreteTimeEqual{F, I}(1, k, F(u), reshape(x, k, 1))
+  ObservationDiscreteTimeEqual{F, I}(1, k - 1, F(u), reshape(x, k, 1))
 end
 
 function observation_discrete_time_equal(
@@ -165,7 +165,7 @@ function observation_discrete_time_equal(
 
   F = typeof(float(u))
 
-  ObservationDiscreteTimeEqual{F, I}(size(x, 2), size(x, 1), F(u), x)
+  ObservationDiscreteTimeEqual{F, I}(size(x, 2), size(x, 1) - 1, F(u), x)
 end
 
 """
