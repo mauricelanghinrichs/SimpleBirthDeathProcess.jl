@@ -56,7 +56,7 @@ function mle(
 
   if !converged_λ
     @warn string("Something went wrong! ",
-                 "I was not able to find an optimum along the border μ ≈ 0!",
+                 "I was not able to find an optimum along the border μ ≈ 0! ",
                  "Nevertheless, I might be able to find the global optimum...")
   end
 
@@ -68,11 +68,11 @@ function mle(
 
   if !converged_μ
     @warn string("Something went wrong! ",
-                 "I was not able to find an optimum along the border λ ≈ 0!",
+                 "I was not able to find an optimum along the border λ ≈ 0! ",
                  "Nevertheless, I might be able to find the global optimum...")
   end
 
-  converged_border = true
+  converged_border = false
 
   if (ll_λ > ll_μ) && (ll_λ > ll_border)
     mle_border[1] = λ
@@ -94,7 +94,7 @@ function mle(
     a, b, c = bracket_optimum(y -> [θ + y; y], one(F), x)
     m, ll_m, converged = brent_method(y -> [θ + y; y], a, b, c, x)
 
-    if m > 1.0e-20
+    if m > tiny
       η[1] = θ + m
       η[2] = m
     else
@@ -105,7 +105,7 @@ function mle(
     a, b, c = bracket_optimum(y -> [y; y - θ], one(F), x)
     l, ll_l, converged = brent_method(y -> [y; y - θ], a, b, c, x)
 
-    if l > 1.0e-20
+    if l > tiny
       η[1] = l
       η[2] = l - θ
     else
@@ -116,7 +116,7 @@ function mle(
     a, b, c = bracket_optimum(y -> [y; y], one(F), x)
     l, ll_l, converged = brent_method(y -> [y; y], a, b, c, x)
 
-    if l > 1.0e-20
+    if l > tiny
       η[1] = l
       η[2] = l
     else
@@ -476,12 +476,14 @@ function multivariate_newton_raphson(
   F <: AbstractFloat
 }
   ϵ = sqrt(eps(F))
+  tiny = F(1.0e-20)
+  threshold = F(1.0e-45)
 
   cur_optimum = copy(η)
   cur_maximum = loglik(η, x)
 
+  maximizer_step = F(Inf)
   converged = false
-  alt_iter = 100
   max_iter = 1_000
 
   for iteration = 1:max_iter
@@ -496,46 +498,45 @@ function multivariate_newton_raphson(
     candidate = cur_optimum .- step_size
 
     # did we overshoot outside the domain?
-    counter = 1
-    while ((candidate[1] < 0) || (candidate[2] < 0)) && (counter <= alt_iter)
+    while ((candidate[1] < 0) || (candidate[2] < 0)) && (γ > threshold)
       γ /= 2
       candidate = cur_optimum .- γ .* step_size
-      counter += 1
     end
 
-    if counter > alt_iter
-      # algorithm did not converge
-      break
-    end
-
-    candidate_ll = loglik(candidate, x)
-
-    # by definition log-likelihood must always increase. If this is
-    # not the case we took a big step at the previous iteration
-    counter = 1
-    while (candidate_ll < cur_maximum) && (counter <= alt_iter)
-      γ /= 2
-      candidate = cur_optimum .- γ .* step_size
-      candidate_ll = loglik(candidate, x)
-      counter += 1
-    end
-
-    if counter > alt_iter
-      # algorithm did not converge
-      break
-    end
-
-    # test the current solution
-    if (abs(1 - cur_optimum[1] / candidate[1]) < ϵ) &&
-       (abs(1 - cur_optimum[2] / candidate[2]) < ϵ)
-      copy!(cur_optimum, candidate)
-      cur_maximum = candidate_ll
+    if γ <= threshold
+      # we could not find a new candidate solution
+      # we reached the maximun within our accepted precision
       converged = true
       break
     end
 
+    ll = loglik(candidate, x)
+
+    # by definition log-likelihood must always increase. If this is
+    # not the case we took a big step at the previous iteration
+    while (ll < cur_maximum) && (γ > threshold)
+      γ /= 2
+      candidate = cur_optimum .- γ .* step_size
+      ll = loglik(candidate, x)
+    end
+
+    if γ <= threshold
+      # we could not find a new candidate solution
+      # we reached the maximun within our accepted precision
+      converged = true
+      break
+    end
+
+    maximizer_step = norm(cur_optimum .- candidate) / (norm(candidate) + tiny)
+
     copy!(cur_optimum, candidate)
-    cur_maximum = candidate_ll
+    cur_maximum = ll
+
+    # test the current solution
+    if maximizer_step <= ϵ
+      converged = true
+      break
+    end
   end
 
   (cur_optimum, cur_maximum, converged)
